@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ZeroClick</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
+
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: sans-serif;
+            background: #f4f4f9;
+            margin: 0;
+        }
+
+        .container {
+            text-align: center;
+            width: 80%;
+            max-width: 600px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px 70px 15px 20px;
+            font-size: 1.2rem;
+            border-radius: 25px;
+            border: 1px solid #ccc;
+            outline: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        .icon-group {
+            position: absolute;
+            right: 15px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .mode-toggle {
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            object-fit: contain;
+            transition: all 0.3s ease;
+            
+            /* IDLE: 35% Brightness, 75% Fade (25% Opacity) */
+            filter: brightness(0.35);
+            opacity: 0.25; 
+        }
+
+        .mode-toggle:hover {
+            /* HOVER: 56% Brightness, 20% Fade (80% Opacity) */
+            filter: brightness(0.56);
+            opacity: 0.80;
+        }
+
+        .mode-toggle.active {
+            /* Keep the glow when Dictionary Mode is on */
+            filter: brightness(0.56) drop-shadow(0 0 5px #4a90e2);
+            opacity: 1;
+        }
+
+        #result {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #333;
+            font-size: 1.5rem;
+            min-height: 1.5em;
+        }
+
+        .dict-result {
+            text-align: left;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-top: 10px;
+        }
+
+        .dict-result h2 {
+            color: #4a90e2;
+            margin-top: 0;
+        }
+
+        .suggestions-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .suggestion-chip {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            color: #555;
+        }
+
+        .suggestion-chip:hover {
+            background: #eef;
+            border-color: #4a90e2;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="input-wrapper">
+        <input type="text" id="searchBox" placeholder="Type something..." autocomplete="off">
+        <div class="icon-group">
+            <img src="{{ url_for('static', filename='dictionary.png') }}"
+                 id="bookBtn"
+                 class="mode-toggle"
+                 title="Dictionary Mode">
+        </div>
+    </div>
+
+    <div id="result"></div>
+    <div class="suggestions-container" id="suggestions"></div>
+
+    <div id="dictDisplay" class="dict-result">
+        <h2 id="dictTitle"></h2>
+        <p id="p1"></p>
+        <p id="p2"></p>
+    </div>
+</div>
+
+<script>
+    const searchBox = document.getElementById('searchBox');
+    const resultDiv = document.getElementById('result');
+    const suggestionsDiv = document.getElementById('suggestions');
+    const bookBtn = document.getElementById('bookBtn');
+    const dictDisplay = document.getElementById('dictDisplay');
+
+    const iconDict = "{{ url_for('static', filename='dictionary.png') }}";
+    const iconSearch = "{{ url_for('static', filename='magnifying-glass.png') }}";
+
+    let currentMode = 'auto';
+    let timeout = null;
+
+    bookBtn.onclick = () => setMode(currentMode === 'dict' ? 'auto' : 'dict');
+
+    function setMode(mode) {
+        currentMode = mode;
+        bookBtn.classList.toggle('active', mode === 'dict');
+        bookBtn.src = (mode === 'dict') ? iconSearch : iconDict;
+        bookBtn.title = (mode === 'dict') ? "Back to Search" : "Dictionary Mode";
+
+        resetUI();
+        searchBox.value = "";
+        searchBox.placeholder =
+            mode === 'dict'
+                ? "Enter topic (e.g. Economics)..."
+                : "Type something...";
+    }
+
+    searchBox.addEventListener('input', () => {
+        clearTimeout(timeout);
+        const query = searchBox.value;
+
+        timeout = setTimeout(() => {
+            if (query.length > 1) {
+                currentMode === 'dict'
+                    ? fetchDict(query)
+                    : fetchAuto(query);
+            } else {
+                resetUI();
+            }
+        }, 500);
+    });
+
+    async function fetchAuto(query) {
+        resultDiv.innerText = "...";
+        try {
+            const res = await fetch('/ask', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query})
+            });
+            const data = await res.json();
+            resultDiv.innerText = data.answer || "";
+            renderChips(data.suggestions);
+        } catch {
+            resultDiv.innerText = "Error.";
+        }
+    }
+
+    async function fetchDict(query) {
+        resultDiv.innerText = "Consulting the library...";
+        try {
+            const res = await fetch('/dictionary', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query})
+            });
+            const data = await res.json();
+            resultDiv.innerText = "";
+            dictDisplay.style.display = "block";
+            document.getElementById('dictTitle').innerText = data.Page_title;
+            document.getElementById('p1').innerText = data.paragraph_1;
+            document.getElementById('p2').innerText = data.paragraph_2;
+        } catch {
+            resultDiv.innerText = "Error.";
+        }
+    }
+
+    function renderChips(chips) {
+        suggestionsDiv.innerHTML = "";
+        if (!chips) return;
+        chips.forEach(text => {
+            const chip = document.createElement('div');
+            chip.className = 'suggestion-chip';
+            chip.innerText = text;
+            chip.onclick = () => {
+                searchBox.value = text;
+                fetchAuto(text);
+            };
+            suggestionsDiv.appendChild(chip);
+        });
+    }
+
+    function resetUI() {
+        resultDiv.innerText = "";
+        suggestionsDiv.innerHTML = "";
+        dictDisplay.style.display = "none";
+    }
+</script>
+</body>
+</html>
