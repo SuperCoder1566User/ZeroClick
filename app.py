@@ -3,16 +3,21 @@ from flask import Flask, render_template, request, jsonify
 from groq import Groq
 from dotenv import load_dotenv
 
+# Load .env for local testing, but Vercel will use Environment Variables
 load_dotenv()
 
-app = Flask(__name__)
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# We tell Flask that the static and template folders are one level UP (..) 
+# because this file is now inside the /api folder.
+app = Flask(__name__, 
+            template_folder='../templates', 
+            static_folder='../static')
 
+# Initialize Groq client
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -23,7 +28,7 @@ def ask():
 
     try:
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.3-70b-versatile", # I updated this to a current Groq model
             messages=[
                 {
                     "role": "system",
@@ -39,11 +44,12 @@ def ask():
             temperature=0.2
         )
 
+        # Groq returns a string, so we return it directly as it is already JSON
         return completion.choices[0].message.content
 
-    except Exception:
+    except Exception as e:
+        print(f"Error: {e}")
         return jsonify({"answer": "Error", "suggestions": ["Try again"]}), 500
-
 
 @app.route('/dictionary', methods=['POST'])
 def dictionary():
@@ -51,7 +57,7 @@ def dictionary():
 
     try:
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
@@ -68,13 +74,13 @@ def dictionary():
 
         return completion.choices[0].message.content
 
-    except Exception:
+    except Exception as e:
+        print(f"Error: {e}")
         return jsonify({
             "Page_title": "Error",
             "paragraph_1": "Could not reach library.",
             "paragraph_2": ""
         }), 500
 
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+# This is required for Vercel to treat this as a serverless function
+app.debug = False
