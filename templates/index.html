@@ -14,6 +14,24 @@
             font-family: sans-serif;
             background: #f4f4f9;
             margin: 0;
+            position: relative; /* Added to keep coordinate system clean */
+        }
+
+        /* Top Right Branding Card */
+        .branding-card {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #555;
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eef;
+            z-index: 1000;
+            letter-spacing: 0.3px;
         }
 
         .container {
@@ -122,6 +140,11 @@
 </head>
 
 <body>
+
+<div class="branding-card">
+    You are on Aldrich's Website
+</div>
+
 <div class="container">
     <div class="input-wrapper">
         <input type="text" id="searchBox" placeholder="Type something..." autocomplete="off">
